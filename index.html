@@ -1,0 +1,524 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05070a">
+<title>POC</title>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: #05070a;
+  color: #c9d1d9;
+  font: 12.5px/1.62 monospace;
+  overflow: hidden;
+  transition: background .9s;
+}
+
+body.red {
+  background: #150a0a;
+}
+
+#out {
+  position: fixed;
+  inset: 0;
+  padding: 14px 14px 46px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.d { color: #6e7681; }
+.g { color: #7ee787; }
+.r { color: #ff7b72; }
+.w { color: #fff; }
+.y { color: #e3b341; }
+.b { color: #79c0ff; }
+
+#gate {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #05070a;
+  z-index: 9;
+}
+
+#gate span {
+  border: 1px solid #30363d;
+  color: #7ee787;
+  padding: 12px 19px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  letter-spacing: .07em;
+}
+
+#gate.gone {
+  display: none;
+}
+
+#end {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 15px;
+  color: #6e7681;
+  text-align: center;
+  opacity: 0;
+  transition: opacity .6s;
+  pointer-events: none;
+}
+
+#end.on {
+  opacity: 1;
+}
+
+body.red #end {
+  background: linear-gradient(transparent, #150a0a);
+}
+</style>
+</head>
+
+<body>
+
+<!-- Method 1: HTML autoplay -->
+<audio id="autoAudio" autoplay preload="auto"></audio>
+
+<div id="gate">
+  <span>ATTACH SESSION</span>
+</div>
+
+<div id="out"></div>
+<div id="end">tap to close</div>
+
+<script>
+(function() {
+
+const out = document.getElementById("out");
+const gate = document.getElementById("gate");
+const end = document.getElementById("end");
+const autoAudio = document.getElementById("autoAudio");
+
+let audio = null;
+let audioStarted = false;
+let done = false;
+let runStarted = false;
+
+const wait = ms =>
+  new Promise(resolve => setTimeout(resolve, ms));
+
+function log(cls, text) {
+  const d = document.createElement("div");
+  d.className = cls;
+  d.textContent = text;
+  out.appendChild(d);
+  out.scrollTop = out.scrollHeight;
+  return d;
+}
+
+async function type(text) {
+  const d = document.createElement("div");
+  d.className = "w";
+
+  const s = document.createElement("span");
+  const c = document.createElement("i");
+
+  c.style.cssText =
+    "display:inline-block;width:7px;height:14px;background:#7ee787;";
+
+  d.append("$ ", s, c);
+  out.appendChild(d);
+
+  for (const ch of text) {
+    s.textContent += ch;
+    out.scrollTop = out.scrollHeight;
+    await wait(38);
+  }
+
+  c.remove();
+}
+
+/* AUDIO: GENERATED MOO */
+
+function moo() {
+
+  if (audioStarted) return;
+
+  try {
+
+    const sr = audio.sampleRate;
+    const n = Math.floor(sr * 1.3);
+
+    const buffer = audio.createBuffer(1, n, sr);
+    const data = buffer.getChannelData(0);
+
+    let phase = 0;
+
+    for (let i = 0; i < n; i++) {
+
+      const t = i / sr;
+
+      const f = (200 - 95 * t) +
+        4 * Math.sin(2 * Math.PI * 3 * t);
+
+      phase += 2 * Math.PI * f / sr;
+
+      const w =
+        Math.sin(phase) +
+        0.45 * Math.sin(2 * phase) +
+        0.3 * Math.sin(3 * phase) +
+        0.18 * Math.sin(4 * phase) +
+        0.1 * Math.sin(5 * phase);
+
+      const e = t < 0.07
+        ? t / 0.07
+        : Math.exp(-(t - 0.07) * 1.6);
+
+      data[i] = Math.max(-1, Math.min(1, e * (w / 1.6)));
+    }
+
+    const source = audio.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audio.destination);
+    source.start();
+
+    audioStarted = true;
+
+  } catch(e) {
+    console.log("Web Audio unavailable", e);
+  }
+}
+
+/* THREE AUTOPLAY ATTEMPTS */
+
+async function tryAutoplay() {
+
+  if (audioStarted) return;
+
+  // Method 1: HTML audio element
+  try {
+    await autoAudio.play();
+    audioStarted = true;
+    console.log("HTML autoplay successful");
+    return;
+  } catch(e) {}
+
+  // Method 2: JavaScript audio.play()
+  try {
+    const secondAudio = new Audio("moo.mp3");
+    secondAudio.volume = 1;
+
+    await secondAudio.play();
+
+    audioStarted = true;
+    console.log("JavaScript autoplay successful");
+    return;
+  } catch(e) {}
+
+  // Method 3: Web Audio API
+  try {
+    if (!audio) {
+      const AC = window.AudioContext ||
+        window.webkitAudioContext;
+
+      audio = new AC();
+    }
+
+    if (audio.state === "running") {
+      moo();
+    } else {
+      await audio.resume();
+
+      if (audio.state === "running") {
+        moo();
+      }
+    }
+
+  } catch(e) {}
+
+}
+
+/* GPU INFORMATION */
+
+function gpu() {
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl");
+
+    if (!gl) return "?";
+
+    const ext = gl.getExtension(
+      "WEBGL_debug_renderer_info"
+    );
+
+    return ext
+      ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
+      : gl.getParameter(gl.RENDERER);
+
+  } catch(e) {
+    return "?";
+  }
+}
+
+/* TERMINAL SEQUENCE */
+
+async function run() {
+
+  if (runStarted) return;
+  runStarted = true;
+
+  await wait(450);
+
+  log("d", "[*] beacon 0x8f3a41c2 -> 443/tcp");
+  await wait(240);
+
+  log("g", "[+] shell obtained (simulation)");
+  await wait(280);
+
+  log("d", "[*] harvest");
+  await wait(150);
+
+  log("b", "[+] ua: " +
+    navigator.userAgent.replace(/^Mozilla\/5\.0 /, ""));
+
+  await wait(150);
+
+  log("b", "[+] plat: " +
+    (navigator.platform || "?") +
+    " dpr:" + devicePixelRatio.toFixed(2));
+
+  await wait(130);
+
+  log("b", "[+] screen: " +
+    screen.width + "x" + screen.height);
+
+  await wait(130);
+
+  log("b", "[+] tz: " +
+    Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+  await wait(130);
+
+  log("b", "[+] lang: " + navigator.language);
+
+  await wait(130);
+
+  log("b", "[+] cores: " +
+    (navigator.hardwareConcurrency || "?"));
+
+  await wait(130);
+
+  log("b", "[+] gpu: " + gpu());
+
+  await wait(130);
+
+  const net = navigator.connection;
+
+  log("b", "[+] net: " +
+    ((net && net.effectiveType) || "?") +
+    (net && net.downlink
+      ? " / " + net.downlink + " Mbps"
+      : ""));
+
+  await wait(130);
+
+  try {
+    const bat = await navigator.getBattery();
+
+    log("b", "[+] bat: " +
+      Math.round(bat.level * 100) + "% " +
+      (bat.charging ? "charging" : "discharging"));
+
+  } catch(e) {}
+
+  const tl = log("b", "[+] t: ");
+
+  const tick = () => {
+    tl.textContent = "[+] t: " +
+      new Date().toLocaleTimeString();
+  };
+
+  tick();
+  setInterval(tick, 1000);
+
+  const ip = log("b", "[+] ip: ...");
+
+  fetch("https://api.ipify.org?format=json")
+    .then(r => r.json())
+    .then(j => {
+      ip.textContent = "[+] ip: " + j.ip;
+    })
+    .catch(() => {
+      ip.textContent = "[+] ip: (offline)";
+    });
+
+  fetch("https://ipapi.co/json/")
+    .then(r => r.json())
+    .then(j => {
+      log("b", "[+] isp: " +
+        (j.org || "?") + " / " +
+        (j.city || "?") + " / " +
+        (j.country_code || "?"));
+    })
+    .catch(() => {});
+
+  await wait(400);
+
+  await type("uname -a");
+
+  log("d",
+    "Linux localhost 6.6.30-android15 #1 SMP PREEMPT aarch64 GNU/Linux");
+
+  await wait(200);
+
+  await type("id");
+
+  log("d",
+    "uid=0(root) gid=0(root) groups=0(root) context=u:r:shell:s0");
+
+  await wait(200);
+
+  await type("ls /sdcard");
+
+  log("d",
+    "Alarms Android DCIM Download Movies Music Notifications Pictures Podcasts Ringtones");
+
+  await wait(420);
+
+  document.body.classList.add("red");
+
+  navigator.vibrate?.([0,45]);
+
+  log("r", "[!] persistence: simulated /sdcard/Android/.cache/k");
+
+  await wait(230);
+
+  log("r", "[!] hook: simulated ime");
+
+  await wait(230);
+
+  log("r", "[!] persistence: simulated");
+
+  await wait(560);
+
+  log("g", "[+] audio beacon -> generated 1.3s moo");
+
+  // Play generated audio if the autoplay methods
+  // have not already succeeded.
+  if (!audioStarted) {
+    if (!audio) {
+      try {
+        const AC = window.AudioContext ||
+          window.webkitAudioContext;
+        audio = new AC();
+      } catch(e) {}
+    }
+
+    if (audio && audio.state === "running") {
+      moo();
+    } else {
+      log("y", "[!] audio autoplay blocked by browser");
+    }
+  }
+
+  await wait(1500);
+
+  log("d", "[*] beacon acknowledged by operator");
+
+  await wait(620);
+
+  log("d", "[-] persistence: removed");
+
+  await wait(420);
+
+  log("g", "[+] clean.");
+
+  await wait(950);
+
+  log("w", "");
+  log("w", "[*] this was a tab, not a shell.");
+  log("w", "[*] no root access was obtained.");
+
+  end.classList.add("on");
+  done = true;
+
+}
+
+/* INITIAL AUTOPLAY ATTEMPT */
+
+window.addEventListener("load", () => {
+
+  tryAutoplay();
+
+  // Retry when page becomes visible
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && !audioStarted) {
+      tryAutoplay();
+    }
+  });
+
+});
+
+/* FALLBACK: USER INTERACTION */
+
+gate.addEventListener("pointerdown", async () => {
+
+  gate.classList.add("gone");
+
+  // Unlock Web Audio in the user gesture
+  try {
+
+    const AC = window.AudioContext ||
+      window.webkitAudioContext;
+
+    audio = audio || new AC();
+
+    await audio.resume();
+
+  } catch(e) {}
+
+  try {
+    document.documentElement.requestFullscreen?.()
+      ?.catch(() => {});
+  } catch(e) {}
+
+  try {
+    navigator.wakeLock?.request("screen")
+      .catch(() => {});
+  } catch(e) {}
+
+  navigator.vibrate?.(0);
+
+  history.pushState({p:1}, "");
+
+  run();
+
+});
+
+/* BACK BUTTON */
+
+addEventListener("popstate", () => {
+  if (!done) {
+    history.pushState({p:1}, "");
+  }
+});
+
+})();
+</script>
+
+</body>
+</html>
